@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>時計と時間の学習ワーク</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@600;700;800;900&display=swap');
+        
+        body {
+            font-family: 'M PLUS Rounded 1c', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 50%, #f1f5f9 100%);
+            color: #1e293b;
+            touch-action: manipulation;
+            user-select: none;
+        }
+
+        /* アニメーション定義 */
+        @keyframes popIn {
+            0% { transform: scale(0.5) rotate(-4deg); opacity: 0; }
+            70% { transform: scale(1.05) rotate(1deg); }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+
+        @keyframes bounceSlow {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 15px rgba(16, 185, 129, 0.4); }
+            50% { box-shadow: 0 0 25px rgba(16, 185, 129, 0.8); }
+        }
+        
+        .animate-pop {
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        .animate-bounce-slow {
+            animation: bounceSlow 2.5s infinite ease-in-out;
+        }
+
+        .pulse-glow {
+            animation: pulseGlow 2s infinite;
+        }
+
+        .hour-color { color: #e11d48; } 
+        .min-color { color: #2563eb; }  
+        .hour-bg { background-color: #f43f5e; }
+        .min-bg { background-color: #3b82f6; }
+
+        /* 紙吹雪用キャンバス */
+        #confettiCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between relative overflow-x-hidden">
+
+    <!-- 紙吹雪キャンバス -->
+    <canvas id="confettiCanvas"></canvas>
+
+    <header class="bg-white/95 backdrop-blur-md text-slate-800 shadow-sm border-b border-sky-100 sticky top-0 z-30">
+        <div class="max-w-6xl mx-auto px-4 py-2.5 flex flex-wrap justify-between items-center gap-2">
+            <div class="flex items-center gap-3">
+                <div class="bg-gradient-to-tr from-sky-500 to-indigo-600 p-2.5 rounded-2xl text-white shadow-md animate-bounce-slow">
+                    <i class="fa-solid fa-clock text-2xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg md:text-xl font-black text-slate-800 tracking-wide flex items-center gap-2">
+                        時計とじかんのワーク
+                        <span class="text-xs px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-200">高等部・実践編</span>
+                    </h1>
+                    <p class="text-xs text-slate-500 font-bold">生活や仕事に役立つ時間のかんかくを身につけよう！</p>
+                </div>
+            </div>
+
+            <!-- ステータス（連続正解 & スコア） -->
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-1.5 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full shadow-sm">
+                    <i class="fa-solid fa-fire text-amber-500 text-lg"></i>
+                    <span id="streak-count" class="text-base font-black text-amber-600">0</span>
+                    <span class="text-xs text-amber-800 font-bold">れんぞく</span>
+                </div>
+
+                <div class="flex items-center gap-2 bg-sky-50 border border-sky-200 px-3.5 py-1 rounded-full shadow-sm">
+                    <i class="fa-solid fa-star text-yellow-400 text-lg"></i>
+                    <span id="score-count" class="text-base font-black text-sky-700">0</span>
+                    <span class="text-xs text-sky-600 font-bold">/ <span id="total-count">0</span> 問</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto w-full px-4 py-4 flex-1 flex flex-col gap-4">
+
+        <!-- チャレンジ進捗バー -->
+        <div class="bg-white/80 backdrop-blur p-3 rounded-2xl shadow-sm border border-slate-200/80">
+            <div class="flex justify-between items-center text-xs font-bold text-slate-600 mb-1 px-1">
+                <span class="flex items-center gap-1.5">
+                    <i class="fa-solid fa-flag-checkered text-sky-600"></i> チャレンジのしんちょく
+                </span>
+                <span id="progress-text">10問ちゅう 1問め</span>
+            </div>
+            <div class="w-full bg-slate-100 rounded-full h-3 overflow-hidden p-0.5 border border-slate-200">
+                <div id="progress-bar" class="bg-gradient-to-r from-sky-400 via-emerald-400 to-teal-500 h-full rounded-full transition-all duration-500" style="width: 10%;"></div>
+            </div>
+        </div>
+
+        <!-- 全6段階のレベル選択メニュー -->
+        <nav class="grid grid-cols-2 md:grid-cols-6 gap-2 bg-slate-200/80 p-1.5 rounded-2xl text-center text-xs font-bold shadow-inner">
+            <button onclick="setMode(1)" id="mode-btn-1" class="mode-btn py-2 px-1.5 rounded-xl transition-all flex flex-col items-center gap-0.5 bg-white text-sky-700 shadow-md border border-sky-200 font-extrabold">
+                <span class="text-[10px] text-slate-400">レベル 1</span>
+                <span>〇時ぴったり</span>
+            </button>
+            <button onclick="setMode(2)" id="mode-btn-2" class="mode-btn py-2 px-1.5 rounded-xl transition-all flex flex-col items-center gap-0.5 text-slate-600 hover:text-slate-900">
+                <span class="text-[10px] text-slate-400">レベル 2 (A)</span>
+                <span>〇時30分（はん）</span>
+            </button>
+            <button onclick="setMode(3)" id="mode-btn-3" class="mode-btn py-2 px-1.5 rounded-xl transition-all flex flex-col items-center gap-0.5 text-slate-600 hover:text-slate-900">
+                <span class="text-[10px] text-slate-400">レベル 3 (B)</span>
+                <span>5分刻み</span>
+            </button>
+            <button onclick="setMode(4)" id="mode-btn-4" class="mode-btn py-2 px-1.5 rounded-xl transition-all flex flex-col items-center gap-0.5 text-slate-600 hover:text-slate-900">
+                <span class="text-[10px] text-slate-400">レベル 4 (C)</span>
+                <span>1分刻み</span>
+            </button>
+            <button onclick="setMode(5)" id="mode-btn-5" class="mode-btn py-2 px-1.5 rounded-xl transition-all flex flex-col items-center gap-0.5 text-slate-600 hover:text-slate-900">
+                <span class="text-[10px] text-slate-400">レベル 5</span>
+                <span>〇時間まえ/あと</span>
+            </button>
+            <button onclick="setMode(6)" id="mode-btn-6" class="mode-btn py-2 px-1.5 rounded-xl transition-all flex flex-col items-center gap-0.5 text-slate-600 hover:text-slate-900">
+                <span class="text-[10px] text-slate-400">レベル 6</span>
+                <span>〇分まえ（ぎゃくさん）</span>
+            </button>
+        </nav>
+
+        <div class="grid md:grid-cols-12 gap-5 items-start">
+
+            <!-- 左カラム：アナログ時計 & ヒント切替 & アシスタント -->
+            <div class="md:col-span-6 bg-white p-4 md:p-5 rounded-3xl shadow-md border border-slate-200/80 flex flex-col items-center relative">
+                
+                <!-- 補助表示トグルコントロール -->
+                <div class="w-full flex flex-wrap justify-between items-center gap-1.5 mb-2">
+                    <div class="flex gap-1.5 flex-wrap">
+                        <button id="toggle-guide-btn" onclick="toggleGuideNumbers()" class="text-xs px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold border border-slate-300/80 transition-colors flex items-center gap-1 shadow-sm">
+                            <i class="fa-solid fa-eye text-sky-600"></i>
+                            <span>5分目盛り: ON</span>
+                        </button>
+                        <button id="toggle-zone-btn" onclick="toggleHourZones()" class="text-xs px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold border border-rose-200 transition-colors flex items-center gap-1 shadow-sm">
+                            <i class="fa-solid fa-pie-chart text-rose-500"></i>
+                            <span>〇時のゾーン: ON</span>
+                        </button>
+                    </div>
+                    <button onclick="readQuestionText()" class="text-xs px-3 py-1.5 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold border border-amber-300 transition-colors flex items-center gap-1 shadow-sm active:scale-95">
+                        <i class="fa-solid fa-volume-high text-amber-600"></i>
+                        <span>こえ</span>
+                    </button>
+                </div>
+
+                <!-- 実生活シチュエーション表示カード -->
+                <div id="situation-card" class="w-full mb-2 p-3 bg-gradient-to-r from-sky-50 to-indigo-50 border border-sky-200/80 rounded-2xl flex items-center gap-3 hidden">
+                    <div id="situation-icon" class="text-2xl text-sky-600 bg-white p-2.5 rounded-xl shadow-sm">
+                        <i class="fa-solid fa-briefcase"></i>
+                    </div>
+                    <div>
+                        <span id="situation-badge" class="text-[11px] font-extrabold px-2 py-0.5 rounded-md bg-sky-200 text-sky-900">作業学習</span>
+                        <p id="situation-text" class="text-xs md:text-sm font-bold text-slate-800 mt-0.5">あさのじゅんびの時間</p>
+                    </div>
+                </div>
+
+                <!-- アナログ時計キャンバス -->
+                <div class="relative my-1">
+                    <canvas id="clockCanvas" width="300" height="300" class="max-w-full h-auto drop-shadow-md"></canvas>
+                </div>
+
+                <!-- 凡例 (短針＝赤, 長針＝青) -->
+                <div class="flex items-center justify-center gap-5 mt-1 text-xs font-black">
+                    <div class="flex items-center gap-1.5 bg-rose-50 px-2.5 py-1 rounded-full border border-rose-200">
+                        <span class="w-3 h-3 rounded-full hour-bg inline-block"></span>
+                        <span class="hour-color">みじかい針（時）</span>
+                    </div>
+                    <div class="flex items-center gap-1.5 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200">
+                        <span class="w-3 h-3 rounded-full min-bg inline-block"></span>
+                        <span class="min-color">ながい針（分）</span>
+                    </div>
+                </div>
+
+                <!-- サポートメッセージ（博士） -->
+                <div class="w-full mt-3 pt-3 border-t border-slate-100 flex items-start gap-3">
+                    <div class="w-11 h-11 rounded-2xl bg-gradient-to-tr from-amber-400 to-yellow-300 flex items-center justify-center text-white text-2xl shadow-md shrink-0 border-2 border-white">
+                        🤖
+                    </div>
+                    <div class="bg-amber-50/90 border border-amber-200/80 p-2.5 rounded-2xl rounded-tl-none text-xs text-amber-900 font-bold flex-1 relative shadow-sm">
+                        <span class="text-[10px] text-amber-600 font-extrabold block mb-0.5">とけい博士のアドバイス</span>
+                        <span id="doctor-msg">針のうごきをよくみて こたえをかんがえよう！</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="md:col-span-6 bg-white p-5 rounded-3xl shadow-md border border-slate-200/80 flex flex-col justify-between min-h-[440px]">
+                <div>
+                    <!-- もんだいヘッダー -->
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-xs font-extrabold px-3 py-1 rounded-full bg-sky-100 text-sky-800 border border-sky-200 inline-flex items-center gap-1">
+                            <i class="fa-solid fa-circle-question"></i> もんだい
+                        </span>
+                        <span id="level-indicator" class="text-xs font-bold text-slate-500">レベル 1</span>
+                    </div>
+
+                    <!-- 問題タイトル & 説明文 -->
+                    <h2 id="question-title" class="text-xl md:text-2xl font-extrabold text-slate-800 leading-snug">
+                        時計は何時を指していますか？
+                    </h2>
+                    <p id="question-sub" class="text-sm text-slate-600 font-bold mt-2 leading-relaxed">
+                        短針（あか色）のすうじをたしかめよう。
+                    </p>
+
+                    <!-- ヒントカード -->
+                    <div id="hint-box" class="mt-4 p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold hidden animate-pop">
+                        <div class="flex items-start gap-2.5">
+                            <i class="fa-solid fa-lightbulb text-amber-500 text-lg mt-0.5 shrink-0"></i>
+                            <div>
+                                <span class="font-extrabold text-amber-800 block mb-0.5">ヒント</span>
+                                <span id="hint-text">針の指している数字を順番に確かめよう。</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 回答エリア -->
+                <div class="mt-6">
+                    <!-- 択一選択肢ボタン（レベル1, 2, 5） -->
+                    <div id="input-choices" class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 my-3">
+                        <!-- ボタンはJavaScriptで生成 -->
+                    </div>
+
+                    <!-- 時間・分 ドロップダウン（レベル3, 4, 6） -->
+                    <div id="input-time-picker" class="flex flex-wrap items-center justify-center gap-3 my-4 p-4 bg-slate-50 rounded-2xl border border-slate-200 hidden">
+                        <div class="flex items-center gap-1.5">
+                            <select id="select-hour" class="text-2xl font-extrabold p-3 border-2 border-rose-300 rounded-2xl bg-white text-rose-900 focus:outline-none focus:border-rose-500 shadow-sm cursor-pointer">
+                                <!-- 1-12 -->
+                            </select>
+                            <span class="font-black text-xl hour-color">時</span>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <select id="select-min" class="text-2xl font-extrabold p-3 border-2 border-blue-300 rounded-2xl bg-white text-blue-900 focus:outline-none focus:border-blue-500 shadow-sm cursor-pointer">
+                                <!-- 00-59 -->
+                            </select>
+                            <span class="font-black text-xl min-color">分</span>
+                        </div>
+                    </div>
+
+                    <!-- 回答・つぎへボタン -->
+                    <div class="flex gap-2.5 mt-4">
+                        <button id="submit-btn" onclick="checkAnswer()" class="flex-1 py-4 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 active:scale-[0.98] text-white text-lg font-black rounded-2xl shadow-lg shadow-emerald-200 transition-all flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-check text-xl"></i>
+                            <span>こたえる</span>
+                        </button>
+                        <button id="next-btn" onclick="generateProblem()" class="flex-1 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-[0.98] text-white text-lg font-black rounded-2xl shadow-lg shadow-blue-200 transition-all hidden flex items-center justify-center gap-2 pulse-glow">
+                            <span>つぎの問題へ</span>
+                            <i class="fa-solid fa-arrow-right text-xl"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <div id="result-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 hidden p-4">
+        <div class="bg-white rounded-3xl p-6 md:p-8 max-w-sm w-full text-center shadow-2xl animate-pop relative border-4 border-emerald-400">
+            
+            <div id="result-icon-container" class="w-20 h-20 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-4xl mx-auto mb-3 shadow-inner">
+                <i id="result-icon" class="fa-solid fa-circle-check"></i>
+            </div>
+            
+            <h3 id="result-title" class="text-2xl font-black text-slate-800 mb-1">せいかい！</h3>
+            <p id="result-desc" class="text-slate-600 mb-6 font-bold text-sm leading-relaxed">すばらしい！ピッタリ合っています。</p>
+            
+            <button onclick="closeModalAndNext()" class="w-full py-3.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 active:scale-95 text-white font-black text-lg rounded-2xl shadow-md transition-all">
+                つぎへ進む
+            </button>
+        </div>
+    </div>
+
+    <!-- フッター -->
+    <footer class="bg-white/80 border-t border-slate-200 py-3 text-center text-xs text-slate-500 font-bold">
+        特別支援学校高等部向け インタラクティブ時間学習アプリ
+    </footer>
+
+    <script>
+        // グローバル変数
+        let currentMode = 1;
+        let score = 0;
+        let totalCount = 0;
+        let streak = 0;
+        let showGuideNumbers = true;
+        let showHourZones = true;
+
+        let currentProblem = {
+            displayHour: 12,
+            displayMin: 0,
+            correctHour: 12,
+            correctMin: 0,
+            type: 'choice', // 'choice' or 'picker'
+            choices: [],
+            hint: '',
+            title: '',
+            sub: '',
+            doctorMsg: '',
+            levelLabel: 'レベル 1'
+        };
+
+        // レベル6のシチュエーションマスターリスト（全25種類以上＋ランダム時間生成）
+        const level6Scenarios = [
+            // 作業・仕事
+            { title: "作業学習の準備", icon: "fa-briefcase", badge: "作業学習", hours: [9, 10, 13, 14], mins: [0, 30], offsets: [5, 10, 15], textTemplate: "｛H｝時｛M_STR｝から作業学習が始まります。｛OFFSET｝分まえに集まるには何時何分？" },
+            { title: "清掃作業の片付け", icon: "fa-broom", badge: "作業学習", hours: [11, 14, 15], mins: [0, 30], offsets: [10, 15, 20], textTemplate: "｛H｝時｛M_STR｝に清掃が終わります。｛OFFSET｝分まえから片付けをはじめるには何時何分？" },
+            { title: "職場体験の集合", icon: "fa-user-gear", badge: "職場実習", hours: [8, 9, 13], mins: [0, 30], offsets: [10, 15, 20], textTemplate: "実習先への集合が｛H｝時｛M_STR｝です。余裕をもって｛OFFSET｝分まえに到着するには何時何分？" },
+            { title: "朝のラジオ体操", icon: "fa-person-running", badge: "日課", hours: [9, 10], mins: [0, 15], offsets: [5, 10], textTemplate: "｛H｝時｛M_STR｝から体操が始まります。｛OFFSET｝分まえに整列するには何時何分？" },
+            { title: "終わりの会", icon: "fa-clipboard-list", badge: "日課", hours: [15, 16], mins: [0, 30], offsets: [10, 15], textTemplate: "｛H｝時｛M_STR｝から終わりの会です。日誌を書くために｛OFFSET｝分まえに着席するには何時何分？" },
+
+            // 学校生活・食事
+            { title: "給食・昼ごはんの準備", icon: "fa-utensils", badge: "食事", hours: [12], mins: [0, 15, 30], offsets: [10, 15, 20], textTemplate: "｛H｝時｛M_STR｝にお昼ごはんです。手洗いと準備のために｛OFFSET｝分まえに準備するには何時何分？" },
+            { title: "チャイムが鳴る前の移動", icon: "fa-bell", badge: "学校生活", hours: [10, 11, 14], mins: [0, 30], offsets: [5, 10], textTemplate: "次の授業が｛H｝時｛M_STR｝から始まります。｛OFFSET｝分まえに移動を始めるには何時何分？" },
+            { title: "部活動の集合", icon: "fa-basketball", badge: "部活動", hours: [15, 16], mins: [30, 45], offsets: [10, 15], textTemplate: "部活動が｛H｝時｛M_STR｝から始まります。着替えて｛OFFSET｝分まえに集まるには何時何分？" },
+            { title: "図書室の返却", icon: "fa-book-open", badge: "学校生活", hours: [12, 13, 16], mins: [0, 30], offsets: [10, 15], textTemplate: "図書室が｛H｝時｛M_STR｝に閉まります。｛OFFSET｝分まえに本を返すには何時何分？" },
+
+            // 交通・移動
+            { title: "路線バスの乗車", icon: "fa-bus", badge: "通勤・移動", hours: [7, 8, 16, 17], mins: [0, 15, 30, 45], offsets: [5, 10, 15], textTemplate: "バスが｛H｝時｛M_STR｝に出発します。切符やカードを用意して｛OFFSET｝分まえにバス停に着くには何時何分？" },
+            { title: "電車に乗る準備", icon: "fa-train", badge: "通勤・移動", hours: [7, 8, 15, 16], mins: [10, 20, 30, 40], offsets: [10, 15, 20], textTemplate: "電車が｛H｝時｛M_STR｝に来ます。ホームで待つために｛OFFSET｝分まえに改札を通るには何時何分？" },
+            { title: "送迎バスの到着", icon: "fa-van-shuttle", badge: "移動", hours: [8, 15], mins: [15, 30, 45], offsets: [5, 10], textTemplate: "送迎車が｛H｝時｛M_STR｝にやってきます。靴を履いて｛OFFSET｝分まえに玄関で待つには何時何分？" },
+
+            // 買い物・おでかけ
+            { title: "映画館の入場", icon: "fa-film", badge: "余暇・おでかけ", hours: [10, 13, 15], mins: [0, 30], offsets: [10, 15, 20], textTemplate: "映画が｛H｝時｛M_STR｝に始まります。チケットを準備して｛OFFSET｝分まえに入場するには何時何分？" },
+            { title: "タイムセールの買い物", icon: "fa-cart-shopping", badge: "買い物", hours: [11, 16, 17], mins: [0, 30], offsets: [10, 15], textTemplate: "お店のタイムセールが｛H｝時｛M_STR｝から始まります。｛OFFSET｝分まえにお店に着くには何時何分？" },
+            { title: "歯医者さんの予約", icon: "fa-tooth", badge: "通院", hours: [10, 11, 15, 16], mins: [0, 30], offsets: [10, 15, 20], textTemplate: "歯医者さんの予約が｛H｝時｛M_STR｝です。受付をするために｛OFFSET｝分まえに着くには何時何分？" },
+            { title: "美容院・理容室の予約", icon: "fa-scissors", badge: "生活", hours: [10, 13, 14], mins: [0, 30], offsets: [10, 15], textTemplate: "髪を切る予約が｛H｝時｛M_STR｝です。｛OFFSET｝分まえにお店に入るには何時何分？" },
+
+            // 家事・生活
+            { title: "テレビ番組の開始", icon: "fa-tv", badge: "余暇", hours: [18, 19, 20], mins: [0, 30], offsets: [5, 10], textTemplate: "楽しみにしている番組が｛H｝時｛M_STR｝から始まります。お風呂を済ませて｛OFFSET｝分まえに準備するには何時何分？" },
+            { title: "洗濯物を取り込む", icon: "fa-shirt", badge: "家事", hours: [16, 17], mins: [0, 30], offsets: [15, 20, 30], textTemplate: "日の暮れる｛H｝時｛M_STR｝までに洗濯物をとりこみたいです。｛OFFSET｝分まえから作業するには何時何分？" },
+            { title: "薬をのむ時間", icon: "fa-pills", badge: "健康", hours: [8, 13, 19], mins: [0, 30], offsets: [10, 15], textTemplate: "ごはんの後の薬を｛H｝時｛M_STR｝に飲みます。お湯を用意するために｛OFFSET｝分まえに準備するには何時何分？" },
+            { title: "タイマーのセット", icon: "fa-stopwatch", badge: "調理", hours: [11, 17, 18], mins: [0, 30], offsets: [10, 15, 20], textTemplate: "料理が｛H｝時｛M_STR｝に出来上がります。テーブルを拭くために｛OFFSET｝分まえに準備するには何時何分？" }
+        ];
+
+        // 初期化
+        window.onload = function() {
+            // ドロップダウンリストの構築
+            const selectHour = document.getElementById('select-hour');
+            for(let h = 1; h <= 12; h++) {
+                const opt = document.createElement('option');
+                opt.value = h;
+                opt.textContent = h;
+                selectHour.appendChild(opt);
+            }
+
+            const selectMin = document.getElementById('select-min');
+            for(let m = 0; m < 60; m++) {
+                const opt = document.createElement('option');
+                opt.value = m;
+                opt.textContent = m < 10 ? '0' + m : m;
+                selectMin.appendChild(opt);
+            }
+
+            setMode(1);
+        };
+
+        // レベルモード切り替え
+        function setMode(mode) {
+            currentMode = mode;
+            for(let i = 1; i <= 6; i++) {
+                const btn = document.getElementById(`mode-btn-${i}`);
+                if(i === mode) {
+                    btn.className = "mode-btn py-2 px-1.5 rounded-xl transition-all flex flex-col items-center gap-0.5 bg-white text-sky-700 shadow-md border border-sky-200 font-extrabold";
+                } else {
+                    btn.className = "mode-btn py-2 px-1.5 rounded-xl transition-all flex flex-col items-center gap-0.5 text-slate-600 hover:text-slate-900 font-bold";
+                }
+            }
+            generateProblem();
+        }
+
+        // トグル機能
+        function toggleGuideNumbers() {
+            showGuideNumbers = !showGuideNumbers;
+            const btn = document.getElementById('toggle-guide-btn');
+            btn.innerHTML = showGuideNumbers 
+                ? `<i class="fa-solid fa-eye text-sky-600"></i><span>5分目盛り: ON</span>`
+                : `<i class="fa-solid fa-eye-slash text-slate-400"></i><span>5分目盛り: OFF</span>`;
+            drawClock(currentProblem.displayHour, currentProblem.displayMin);
+        }
+
+        function toggleHourZones() {
+            showHourZones = !showHourZones;
+            const btn = document.getElementById('toggle-zone-btn');
+            btn.innerHTML = showHourZones 
+                ? `<i class="fa-solid fa-pie-chart text-rose-500"></i><span>〇時のゾーン: ON</span>`
+                : `<i class="fa-solid fa-pie-chart text-slate-400"></i><span>〇時のゾーン: OFF</span>`;
+            drawClock(currentProblem.displayHour, currentProblem.displayMin);
+        }
+
+        function generateProblem() {
+            document.getElementById('next-btn').classList.add('hidden');
+            document.getElementById('submit-btn').classList.remove('hidden');
+            document.getElementById('hint-box').classList.add('hidden');
+            document.getElementById('situation-card').classList.add('hidden');
+
+            const currentProgress = (totalCount % 10) + 1;
+            document.getElementById('progress-text').textContent = `10問ちゅう ${currentProgress}問め`;
+            document.getElementById('progress-bar').style.width = `${(currentProgress / 10) * 100}%`;
+
+            const randHour = Math.floor(Math.random() * 12) + 1;
+
+            if (currentMode === 1) {
+                // 【レベル1】◯時ぴったり
+                currentProblem.displayHour = randHour;
+                currentProblem.displayMin = 0;
+                currentProblem.correctHour = randHour;
+                currentProblem.correctMin = 0;
+                currentProblem.type = 'choice';
+                currentProblem.levelLabel = 'レベル 1：◯時ぴったり';
+                currentProblem.title = "時計は何時を指していますか？";
+                currentProblem.sub = "短針（あか色）のすうじをよくみよう。";
+                currentProblem.doctorMsg = "長針（あお色）が「12」を指しているときは「◯時ちょうど」だよ！";
+                currentProblem.hint = "赤い針が指している数字を読むだけでだいじょうぶ！";
+
+                let choices = [randHour];
+                while(choices.length < 4) {
+                    let dummy = Math.floor(Math.random() * 12) + 1;
+                    if(!choices.includes(dummy)) choices.push(dummy);
+                }
+                currentProblem.choices = choices.sort((a,b) => a - b).map(h => `${h} 時`);
+
+            } else if (currentMode === 2) {
+                // 【レベル2（A）】◯時30分（〇時はん）
+                currentProblem.displayHour = randHour;
+                currentProblem.displayMin = 30;
+                currentProblem.correctHour = randHour;
+                currentProblem.correctMin = 30;
+                currentProblem.type = 'choice';
+                currentProblem.levelLabel = 'レベル 2 (A)：◯時30分（はん）';
+                currentProblem.title = "時計は何時何分ですか？";
+                
+                let nextHour = randHour === 12 ? 1 : randHour + 1;
+                currentProblem.sub = `短針（あか）が ${randHour} と ${nextHour} の あいだにあります。`;
+                currentProblem.doctorMsg = "短針が数字と数字の間にあるときは「ちいさい方の数字（通り過ぎた方の数字）」を読むよ！";
+                currentProblem.hint = "長針が「6」のときは30分（はん）だよ。短針は小さい方の数字を選ぼう。";
+
+                let choices = [
+                    `${randHour}時 30分`,
+                    `${nextHour}時 30分`,
+                    `${randHour}時 00分`,
+                    `${nextHour}時 00分`
+                ];
+                currentProblem.choices = choices;
+
+            } else if (currentMode === 3) {
+                // 【レベル3（B）】5分刻み
+                const randMinIdx = Math.floor(Math.random() * 12);
+                const randMin = randMinIdx * 5;
+                
+                currentProblem.displayHour = randHour;
+                currentProblem.displayMin = randMin;
+                currentProblem.correctHour = randHour;
+                currentProblem.correctMin = randMin;
+                currentProblem.type = 'picker';
+                currentProblem.levelLabel = 'レベル 3 (B)：5分刻み';
+                currentProblem.title = "時計は何時何分ですか？";
+                currentProblem.sub = "長針（あお色）が指す数字に 5をかけてみよう（5, 10, 15...）。";
+                currentProblem.doctorMsg = "時計の外側にある 青色の「5分ごとの数字」を参考にしてみてね！";
+                currentProblem.hint = "短針が指す「時」と、長針が指す「5分刻みの数字」を組み合わせよう。";
+
+            } else if (currentMode === 4) {
+                // 【レベル4（C）】1分刻み
+                const randMin = Math.floor(Math.random() * 60);
+                
+                currentProblem.displayHour = randHour;
+                currentProblem.displayMin = randMin;
+                currentProblem.correctHour = randHour;
+                currentProblem.correctMin = randMin;
+                currentProblem.type = 'picker';
+                currentProblem.levelLabel = 'レベル 4 (C)：1分刻み';
+                currentProblem.title = "時計は何時何分ですか？";
+                currentProblem.sub = "細（ほそ）かい目盛り（1分刻み）を注意深く数えてみよう！";
+                currentProblem.doctorMsg = "一番近い「5の倍数の目盛り」から 1つずつ数えるとわかりやすいよ！";
+                currentProblem.hint = "青い5分刻みの目盛りから、あと何本進んでいるか数えてみよう。";
+
+            } else if (currentMode === 5) {
+                // 【レベル5】◯時間まえ / あと
+                const isBefore = Math.random() < 0.5;
+                const offset = Math.floor(Math.random() * 2) + 1;
+                currentProblem.displayHour = randHour;
+                currentProblem.displayMin = 0;
+                
+                let targetHour;
+                if(isBefore) {
+                    targetHour = randHour - offset;
+                    if(targetHour <= 0) targetHour += 12;
+                    currentProblem.title = `いま ${randHour}時 です。`;
+                    currentProblem.sub = `<span class="font-extrabold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">${offset}時間まえ</span> は 何時でしたか？`;
+                    currentProblem.doctorMsg = "「〜時間まえ」は、針を左回りに戻して考えよう！";
+                    currentProblem.hint = `時計の針を ${offset}つ 左回りに戻して数えてみよう。`;
+                } else {
+                    targetHour = randHour + offset;
+                    if(targetHour > 12) targetHour -= 12;
+                    currentProblem.title = `いま ${randHour}時 です。`;
+                    currentProblem.sub = `<span class="font-extrabold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">${offset}時間あと</span> は 何時になりますか？`;
+                    currentProblem.doctorMsg = "「〜時間あと」は、針を右回りに進めてみよう！";
+                    currentProblem.hint = `時計の針を ${offset}つ 右回りに進めて数えてみよう。`;
+                }
+
+                currentProblem.correctHour = targetHour;
+                currentProblem.correctMin = 0;
+                currentProblem.type = 'choice';
+                currentProblem.levelLabel = 'レベル 5：〇時間まえ/あと';
+
+                let choices = [targetHour];
+                while(choices.length < 4) {
+                    let dummy = Math.floor(Math.random() * 12) + 1;
+                    if(!choices.includes(dummy)) choices.push(dummy);
+                }
+                currentProblem.choices = choices.sort((a,b) => a - b).map(h => `${h} 時`);
+
+            } else if (currentMode === 6) {
+                // 【レベル6】多種多様な場面＆ランダム時間の逆算問題
+                const template = level6Scenarios[Math.floor(Math.random() * level6Scenarios.length)];
+                
+                // ランダムに時間・分・オフセット（〇分前）を抽出
+                const baseHour12 = template.hours[Math.floor(Math.random() * template.hours.length)];
+                const baseMin = template.mins[Math.floor(Math.random() * template.mins.length)];
+                const offsetMin = template.offsets[Math.floor(Math.random() * template.offsets.length)];
+
+                // 24時間表記を12時間表記（表示用）に変換
+                let displayH = baseHour12 > 12 ? baseHour12 - 12 : baseHour12;
+                if (displayH === 0) displayH = 12;
+
+                const minStr = baseMin === 0 ? "00分" : `${baseMin}分`;
+                const promptText = template.textTemplate
+                    .replace('｛H｝', displayH)
+                    .replace('｛M_STR｝', minStr)
+                    .replace('｛OFFSET｝', offsetMin);
+
+                currentProblem.displayHour = displayH;
+                currentProblem.displayMin = baseMin;
+
+                // 逆算計算
+                let totalMin = displayH * 60 + baseMin - offsetMin;
+                if (totalMin <= 0) totalMin += 12 * 60;
+
+                let cHour = Math.floor(totalMin / 60);
+                let cMin = totalMin % 60;
+                if (cHour === 0) cHour = 12;
+                if (cHour > 12) cHour %= 12;
+
+                currentProblem.correctHour = cHour;
+                currentProblem.correctMin = cMin;
+                currentProblem.type = 'picker';
+                currentProblem.levelLabel = 'レベル 6：〇分まえ（ぎゃくさん）';
+                currentProblem.title = template.title;
+                currentProblem.sub = promptText;
+                currentProblem.doctorMsg = "社会生活では「〇分まえ行動」がとっても大事！長針を戻して考えてみよう！";
+                currentProblem.hint = `${displayH}時${minStr} から 長い針（青色）を左回りに ${offsetMin}分間 もどしてみよう。`;
+
+                document.getElementById('situation-card').classList.remove('hidden');
+                document.getElementById('situation-icon').innerHTML = `<i class="fa-solid ${template.icon}"></i>`;
+                document.getElementById('situation-badge').textContent = template.badge;
+                document.getElementById('situation-text').textContent = promptText;
+            }
+
+            // UI反映
+            document.getElementById('question-title').innerHTML = currentProblem.title;
+            document.getElementById('question-sub').innerHTML = currentProblem.sub;
+            document.getElementById('hint-text').textContent = currentProblem.hint;
+            document.getElementById('doctor-msg').textContent = currentProblem.doctorMsg;
+            document.getElementById('level-indicator').textContent = currentProblem.levelLabel;
+
+            setupInputUI();
+            drawClock(currentProblem.displayHour, currentProblem.displayMin);
+        }
+
+        // 回答UIの動的作成
+        function setupInputUI() {
+            const choicesContainer = document.getElementById('input-choices');
+            const pickerContainer = document.getElementById('input-time-picker');
+
+            choicesContainer.innerHTML = '';
+
+            if(currentProblem.type === 'choice') {
+                choicesContainer.classList.remove('hidden');
+                pickerContainer.classList.add('hidden');
+
+                currentProblem.choices.forEach(valStr => {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'choice-btn py-3 px-2 text-lg font-black border-2 border-slate-200 rounded-2xl bg-slate-50 hover:bg-sky-50 hover:border-sky-400 active:scale-95 transition-all text-slate-800 shadow-sm';
+                    btn.textContent = valStr;
+                    btn.onclick = () => {
+                        document.querySelectorAll('.choice-btn').forEach(b => {
+                            b.classList.remove('bg-sky-500', 'text-white', 'border-sky-500', 'shadow-md');
+                            b.classList.add('bg-slate-50', 'text-slate-800');
+                            delete b.dataset.selected;
+                        });
+                        btn.classList.remove('bg-slate-50', 'text-slate-800');
+                        btn.classList.add('bg-sky-500', 'text-white', 'border-sky-500', 'shadow-md');
+                        btn.dataset.selected = "true";
+                    };
+                    choicesContainer.appendChild(btn);
+                });
+            } else {
+                choicesContainer.classList.add('hidden');
+                pickerContainer.classList.remove('hidden');
+                
+                document.getElementById('select-hour').value = 1;
+                document.getElementById('select-min').value = 0;
+            }
+        }
+
+        function drawClock(hour, minute) {
+            const canvas = document.getElementById('clockCanvas');
+            const ctx = canvas.getContext('2d');
+            const radius = canvas.width / 2;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.save();
+            ctx.translate(radius, radius);
+
+            // 1. 〇時ゾーン（扇形ヒント表示）
+            if (showHourZones) {
+                const zoneHour = hour % 12;
+                const startAngle = (zoneHour * 30 - 90) * Math.PI / 180;
+                const endAngle = ((zoneHour + 1) * 30 - 90) * Math.PI / 180;
+
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.arc(0, 0, radius - 20, startAngle, endAngle);
+                ctx.closePath();
+                ctx.fillStyle = 'rgba(254, 205, 211, 0.45)'; // やわらかい赤色の扇形
+                ctx.fill();
+            }
+
+            // 2. 時計文字盤の外枠
+            ctx.beginPath();
+            ctx.arc(0, 0, radius - 8, 0, 2 * Math.PI);
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+            ctx.lineWidth = 7;
+            ctx.strokeStyle = '#0f172a';
+            ctx.stroke();
+
+            // 3. 5分毎・1分毎の目盛り
+            for (let i = 0; i < 60; i++) {
+                const angle = (i * 6) * Math.PI / 180;
+                ctx.rotate(angle);
+                if (i % 5 === 0) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, -(radius - 22));
+                    ctx.lineTo(0, -(radius - 10));
+                    ctx.lineWidth = 3.5;
+                    ctx.strokeStyle = '#0f172a';
+                    ctx.stroke();
+                } else {
+                    ctx.beginPath();
+                    ctx.moveTo(0, -(radius - 18));
+                    ctx.lineTo(0, -(radius - 12));
+                    ctx.lineWidth = 1.2;
+                    ctx.strokeStyle = '#94a3b8';
+                    ctx.stroke();
+                }
+                ctx.rotate(-angle);
+            }
+
+            // 4. 文字盤の数字 (1〜12)
+            ctx.font = '800 22px "M PLUS Rounded 1c", sans-serif';
+            ctx.fillStyle = '#1e293b';
+            ctx.textBaseline = 'middle';
+            ctx.textAlign = 'center';
+
+            for (let num = 1; num <= 12; num++) {
+                const ang = num * Math.PI / 6;
+                const x = (radius - 38) * Math.sin(ang);
+                const y = -(radius - 38) * Math.cos(ang);
+                ctx.fillText(num.toString(), x, y);
+            }
+
+            // 5. 5分補助数字 (5, 10, 15...)
+            if (showGuideNumbers) {
+                ctx.font = '700 11px "M PLUS Rounded 1c", sans-serif';
+                ctx.fillStyle = '#2563eb';
+                for (let m = 5; m <= 55; m += 5) {
+                    const ang = (m * 6) * Math.PI / 180;
+                    const x = (radius - 11) * Math.sin(ang);
+                    const y = -(radius - 11) * Math.cos(ang);
+                    ctx.fillText(m.toString(), x, y);
+                }
+            }
+
+            // 針の角度計算
+            const hourAngle = ((hour % 12) + minute / 60) * (Math.PI / 6);
+            const minuteAngle = (minute) * (Math.PI / 30);
+
+            // 6. 短針（赤：時）
+            ctx.save();
+            ctx.rotate(hourAngle);
+            ctx.beginPath();
+            ctx.moveTo(0, 12);
+            ctx.lineTo(0, -(radius - 80));
+            ctx.lineWidth = 8;
+            ctx.strokeStyle = '#f43f5e';
+            ctx.lineCap = 'round';
+            ctx.stroke();
+            ctx.restore();
+
+            // 7. 長針（青：分）
+            ctx.save();
+            ctx.rotate(minuteAngle);
+            ctx.beginPath();
+            ctx.moveTo(0, 16);
+            ctx.lineTo(0, -(radius - 32));
+            ctx.lineWidth = 5.5;
+            ctx.strokeStyle = '#3b82f6';
+            ctx.lineCap = 'round';
+            ctx.stroke();
+            ctx.restore();
+
+            // 中心ピン
+            ctx.beginPath();
+            ctx.arc(0, 0, 8, 0, 2 * Math.PI);
+            ctx.fillStyle = '#0f172a';
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function checkAnswer() {
+            let userHour, userMin;
+
+            if (currentProblem.type === 'choice') {
+                const selectedBtn = document.querySelector('.choice-btn[data-selected="true"]');
+                if (!selectedBtn) {
+                    alert("こたえの数字を選んでね！");
+                    return;
+                }
+                const text = selectedBtn.textContent;
+                if(text.includes('30分')) {
+                    const parts = text.split('時');
+                    userHour = parseInt(parts[0].trim());
+                    userMin = 30;
+                } else if(text.includes('00分')) {
+                    const parts = text.split('時');
+                    userHour = parseInt(parts[0].trim());
+                    userMin = 0;
+                } else {
+                    userHour = parseInt(text.replace('時', '').trim());
+                    userMin = 0;
+                }
+            } else {
+                userHour = parseInt(document.getElementById('select-hour').value);
+                userMin = parseInt(document.getElementById('select-min').value);
+            }
+
+            totalCount++;
+            document.getElementById('total-count').textContent = totalCount;
+
+            const isCorrect = (userHour === currentProblem.correctHour && userMin === currentProblem.correctMin);
+
+            if(isCorrect) {
+                streak++;
+                score++;
+                document.getElementById('streak-count').textContent = streak;
+                document.getElementById('score-count').textContent = score;
+                playBrightChime(); // 正解音（Web Audio API）
+                triggerConfetti();  // 紙吹雪アニメーション
+            } else {
+                streak = 0;
+                document.getElementById('streak-count').textContent = 0;
+                playIncorrectSound(); // 不正解音
+            }
+
+            showResultModal(isCorrect);
+        }
+
+        // Web Audio API による合成正解音 (明るいチャイム：ピンポンパンポン)
+        function playBrightChime() {
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if(!AudioContext) return;
+                const ctx = new AudioContext();
+
+                // 明るい和音チャイム (G4 -> C5 -> E5 -> G5)
+                const freqs = [392.00, 523.25, 659.25, 783.99];
+                freqs.forEach((freq, idx) => {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, ctx.currentTime + idx * 0.08);
+
+                    gain.gain.setValueAtTime(0, ctx.currentTime + idx * 0.08);
+                    gain.gain.linearRampToValueAtTime(0.25, ctx.currentTime + idx * 0.08 + 0.02);
+                    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + idx * 0.08 + 0.35);
+
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+
+                    osc.start(ctx.currentTime + idx * 0.08);
+                    osc.stop(ctx.currentTime + idx * 0.08 + 0.35);
+                });
+            } catch(e) {}
+        }
+
+        function playIncorrectSound() {
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if(!AudioContext) return;
+                const ctx = new AudioContext();
+
+                [261.63, 220.00].forEach((freq, idx) => {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, ctx.currentTime + idx * 0.15);
+
+                    gain.gain.setValueAtTime(0.15, ctx.currentTime + idx * 0.15);
+                    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + idx * 0.15 + 0.25);
+
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+
+                    osc.start(ctx.currentTime + idx * 0.15);
+                    osc.stop(ctx.currentTime + idx * 0.15 + 0.25);
+                });
+            } catch(e) {}
+        }
+
+        function showResultModal(isCorrect) {
+            const modal = document.getElementById('result-modal');
+            const iconContainer = document.getElementById('result-icon-container');
+            const icon = document.getElementById('result-icon');
+            const title = document.getElementById('result-title');
+            const desc = document.getElementById('result-desc');
+
+            modal.classList.remove('hidden');
+
+            if(isCorrect) {
+                iconContainer.className = "w-20 h-20 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-4xl mx-auto mb-3 shadow-inner";
+                icon.className = "fa-solid fa-circle-check";
+                title.textContent = "大せいかい！";
+                title.className = "text-2xl font-black text-emerald-600 mb-1";
+                desc.textContent = "素晴らしい！ピッタリ正解です。";
+                document.getElementById('doctor-msg').textContent = "大せいかい！その調子でどんどん進めよう！";
+            } else {
+                iconContainer.className = "w-20 h-20 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-4xl mx-auto mb-3 shadow-inner";
+                icon.className = "fa-solid fa-face-smile text-amber-500";
+                title.textContent = "もう一度やってみよう！";
+                title.className = "text-2xl font-black text-amber-600 mb-1";
+                
+                const correctMinStr = currentProblem.correctMin < 10 ? '0' + currentProblem.correctMin : currentProblem.correctMin;
+                desc.textContent = `正解は ${currentProblem.correctHour}時 ${correctMinStr}分 でした。ヒントを見て確認してみよう！`;
+                
+                document.getElementById('hint-box').classList.remove('hidden');
+                document.getElementById('doctor-msg').textContent = "おしい！ヒントを見てもう一回挑戦しよう！";
+            }
+        }
+
+        function closeModalAndNext() {
+            document.getElementById('result-modal').classList.add('hidden');
+            generateProblem();
+        }
+
+        // 音声読み上げ
+        function readQuestionText() {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const titleText = document.getElementById('question-title').innerText;
+                const subText = document.getElementById('question-sub').innerText.replace(/<[^>]*>?/gm, '');
+                const textToRead = `${titleText}。${subText}`;
+
+                const uttr = new SpeechSynthesisUtterance(textToRead);
+                uttr.lang = 'ja-JP';
+                uttr.rate = 0.85;
+                window.speechSynthesis.speak(uttr);
+            }
+        }
+
+        function triggerConfetti() {
+            const canvas = document.getElementById('confettiCanvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            const particles = [];
+            const colors = ['#f43f5e', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
+
+            for (let i = 0; i < 75; i++) {
+                particles.push({
+                    x: canvas.width / 2,
+                    y: canvas.height / 2,
+                    vx: (Math.random() - 0.5) * 16,
+                    vy: (Math.random() - 0.7) * 16,
+                    size: Math.random() * 8 + 4,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    rotation: Math.random() * 360,
+                    rSpeed: (Math.random() - 0.5) * 10
+                });
+            }
+
+            let frame = 0;
+            function animate() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                particles.forEach((p) => {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.vy += 0.3; // 重力
+                    p.rotation += p.rSpeed;
+
+                    ctx.save();
+                    ctx.translate(p.x, p.y);
+                    ctx.rotate((p.rotation * Math.PI) / 180);
+                    ctx.fillStyle = p.color;
+                    ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+                    ctx.restore();
+                });
+
+                frame++;
+                if (frame < 75) {
+                    requestAnimationFrame(animate);
+                } else {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                }
+            }
+            animate();
+        }
+    </script>
+</body>
+</html>
